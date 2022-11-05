@@ -1,4 +1,4 @@
-from flask import Flask,redirect,url_for,render_template,request,make_response
+from flask import Flask,redirect,url_for,render_template,request,make_response,jsonify
 import ibm_db
 
 conn = ibm_db.connect("DATABASE=bludb;HOSTNAME=764264db-9824-4b7c-82df-40d1b13897c2.bs2io90l08kqb1od8lcg.databases.appdomain.cloud;PORT=32536;SECURITY=SSL;SSLServerCertificate=abc.crt;UID=gnq12618;PWD=0glS4tFaR2ciK8fB",'','')
@@ -25,8 +25,34 @@ def login():
         ibm_db.execute(stmt)
         dic = ibm_db.fetch_assoc(stmt)
         print(dic)
+        role = str()
+        requests = []
         if dic:
-            return redirect(url_for('home'))
+            role = dic['ROLE']
+            sql = "select * from user where blood_group=?"
+            stmt = ibm_db.prepare(conn, sql)
+            ibm_db.bind_param(stmt, 1, username)
+            ibm_db.execute(stmt)
+            dic = ibm_db.fetch_assoc(stmt)
+
+
+            while dic != False:
+                single_request = {
+                    'name': dic['NAME'],
+                    'age': dic['AGE'],
+                    'sex': dic['SEX'],
+                    'blood_type': dic['BLOOD_TYPE']
+                }
+                print(single_request)
+                requests.append(single_request)
+                dic = ibm_db.fetch_assoc(stmt)
+            return jsonify(
+                username=username,
+                role=role,
+                donors = requests
+            )
+
+
         else:
             return redirect(url_for('login'))
         return redirect(url_for('home'))
@@ -60,6 +86,79 @@ def signup():
         return redirect(url_for('login'))
     elif request.method=='GET':
         return render_template('signup.html')
+
+@app.route('/toggle',methods=['PUT'])
+def toggle_user():
+    username = request.form['username']
+    role = request.form['role']
+    sql = "update user set role=? where username=?"
+    prep_stmt = ibm_db.prepare(conn, sql)
+    ibm_db.bind_param(prep_stmt, 1, role)
+    ibm_db.bind_param(prep_stmt, 2, username)
+    ibm_db.execute(prep_stmt)
+    return jsonify(
+        status = "success",
+        role = role
+    )
+
+@app.route('/requestPalsma',methods=['POST'])
+def requestBloodPlasma():
+    #fetch mail address of the donors
+    username = request.form['username']
+    name = request.form['name']
+    age = request.form['age']
+    sex = request.form['sex']
+    blood_type = request.form['bloodtype']
+    sql = "select email from user where blood_group=?"
+    stmt = ibm_db.prepare(conn, sql)
+    ibm_db.bind_param(stmt, 1, blood_type)
+    ibm_db.execute(stmt)
+    dic = ibm_db.fetch_assoc(stmt)
+    while dic!=False:
+        print(dic['email'])
+    #send mail
+    #insert data into requests table
+    sql = "insert into bloodrequests(username,name,age,sex,blood_type) values (?,?,?,?,?)"
+    prep_stmt = ibm_db.prepare(conn, sql)
+    ibm_db.bind_param(prep_stmt, 1, username)
+    ibm_db.bind_param(prep_stmt, 2, name)
+    ibm_db.bind_param(prep_stmt, 3, age)
+    ibm_db.bind_param(prep_stmt, 4, sex)
+    ibm_db.bind_param(prep_stmt, 5, blood_type)
+    ibm_db.execute(prep_stmt)
+
+    return jsonify(
+        name = name,
+        age = age,
+        sex = sex,
+        bloodtype = blood_type,
+        status = "yes"
+    )
+
+@app.route('/getrequests',methods=['POST'])
+def getBloodRequests():
+    username = request.form['username']
+    sql = "select * from bloodrequests where username=?"
+    stmt = ibm_db.prepare(conn, sql)
+    ibm_db.bind_param(stmt, 1, username)
+    ibm_db.execute(stmt)
+    dic = ibm_db.fetch_assoc(stmt)
+    requests = []
+    print(type(dic))
+    while dic != False:
+        single_request = {
+            'name':dic['NAME'],
+            'age':dic['AGE'],
+            'sex':dic['SEX'],
+            'blood_type':dic['BLOOD_TYPE']
+        }
+        print(single_request)
+        requests.append(single_request)
+        dic = ibm_db.fetch_assoc(stmt)
+    return jsonify(
+        username = username,
+        requests = requests
+    )
 
 
 if __name__=='__main__':
