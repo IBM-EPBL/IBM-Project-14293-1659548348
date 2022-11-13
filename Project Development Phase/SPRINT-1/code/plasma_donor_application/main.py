@@ -29,7 +29,7 @@ def login():
         requests = []
         if dic:
             role = dic['ROLE']
-            sql = "select * from user where blood_group=?"
+            sql = "select NAME,AGE,SEX,BLOOD_TYPE from user where blood_group=?"
             stmt = ibm_db.prepare(conn, sql)
             ibm_db.bind_param(stmt, 1, username)
             ibm_db.execute(stmt)
